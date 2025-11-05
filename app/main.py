@@ -9,6 +9,7 @@ from app.config import get_settings
 from app.utils.logger import log
 from app.models.database import init_db
 from app.core.event_bus import get_event_bus
+from app.core.trading_bot import get_bot
 from app.api.routes import trading, strategies, portfolio, analytics
 from app.api import websocket
 
@@ -30,10 +31,20 @@ async def lifespan(app: FastAPI):
     await event_bus.start()
     log.info("Event bus started")
     
+    # Initialize trading bot
+    bot = get_bot()
+    log.info("Trading bot instance created")
+    
     yield
     
     # Shutdown
     log.info("Shutting down Trading Bot API...")
+    
+    # Stop bot if running
+    bot = get_bot()
+    if bot.is_running:
+        await bot.stop()
+        log.info("Trading bot stopped")
     
     # Stop event bus
     await event_bus.stop()
