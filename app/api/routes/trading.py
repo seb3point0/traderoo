@@ -42,6 +42,7 @@ class StrategyAddRequest(BaseModel):
     symbol: str
     timeframe: str = "1h"
     params: Optional[Dict[str, Any]] = None
+    enable_ai_validation: bool = True  # Enable AI validation by default
 
 
 class BotStatusResponse(BaseModel):
@@ -170,7 +171,7 @@ async def resume_bot():
 
 @router.post("/bot/strategy/add")
 async def add_strategy(request: StrategyAddRequest):
-    """Add a strategy to the bot"""
+    """Add a strategy to the bot with optional AI validation"""
     bot = get_bot()
     
     if not bot.is_running:
@@ -198,6 +199,16 @@ async def add_strategy(request: StrategyAddRequest):
                 timeframe=request.timeframe
             )
         
+        # Wrap with AI validator if enabled
+        if request.enable_ai_validation:
+            from app.strategies.ai_validator import AIValidatorStrategy
+            strategy = AIValidatorStrategy(strategy)
+            await strategy.initialize()
+            
+            log.info(f"AI validation ENABLED for {request.strategy_name}")
+        else:
+            log.info(f"AI validation DISABLED for {request.strategy_name}")
+        
         # Add to bot
         bot.add_strategy(strategy)
         
@@ -206,7 +217,8 @@ async def add_strategy(request: StrategyAddRequest):
             "strategy": {
                 "name": strategy.name,
                 "symbol": strategy.symbol,
-                "timeframe": strategy.timeframe
+                "timeframe": strategy.timeframe,
+                "ai_enabled": request.enable_ai_validation
             }
         }
         
@@ -266,5 +278,85 @@ async def reset_bot_errors():
         }
     except Exception as e:
         log.error(f"Error resetting errors: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/bot/ai-insights/{symbol}")
+async def get_ai_insights(symbol: str):
+    """Get AI market insights for a symbol"""
+    try:
+        from ai.ai_market_analyzer import AIMarketAnalyzer
+        
+        analyzer = AIMarketAnalyzer()
+        await analyzer.initialize()
+        
+        # Get market overview
+        overview = await analyzer.get_market_overview(symbol)
+        
+        await analyzer.close()
+        
+        if not overview:
+            raise HTTPException(status_code=404, detail=f"No AI insights available for {symbol}")
+        
+        return overview
+        
+    except Exception as e:
+        log.error(f"Error getting AI insights: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/bot/ai-stats")
+async def get_ai_stats():
+    """Get AI validation statistics for all strategies"""
+    bot = get_bot()
+    
+    try:
+        from app.strategies.ai_validator import AIValidatorStrategy
+        
+        ai_stats = []
+        
+        for strategy in bot.strategies.values():
+            if isinstance(strategy, AIValidatorStrategy):
+                stats = strategy.get_ai_stats()
+                ai_stats.append(stats)
+        
+        # Calculate totals
+        total_approvals = sum(s['ai_approvals'] for s in ai_stats)
+        total_rejections = sum(s['ai_rejections'] for s in ai_stats)
+        total_validations = total_approvals + total_rejections
+        
+        overall_approval_rate = (
+            (total_approvals / total_validations * 100) 
+            if total_validations > 0 else 0
+        )
+        
+        return {
+            "ai_enabled_strategies": len(ai_stats),
+            "total_approvals": total_approvals,
+            "total_rejections": total_rejections,
+            "overall_approval_rate": overall_approval_rate,
+            "strategies": ai_stats
+        }
+        
+    except Exception as e:
+        log.error(f"Error getting AI stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/bot/ai-cache/invalidate/{symbol}")
+async def invalidate_ai_cache(symbol: str):
+    """Invalidate AI cache for a symbol"""
+    try:
+        from app.core.cache_manager import get_cache_manager
+        
+        cache_manager = await get_cache_manager()
+        await cache_manager.invalidate_symbol(symbol)
+        
+        return {
+            "message": f"AI cache invalidated for {symbol}"
+        }
+        
+    except Exception as e:
+        log.error(f"Error invalidating cache: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 

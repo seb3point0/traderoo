@@ -44,8 +44,13 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     anthropic_api_key: str = ""
     use_ai_analysis: bool = False
+    ai_confidence_threshold: int = 60  # Minimum confidence (0-100) to execute trades
+    ai_cache_ttl: int = 14400  # Cache TTL in seconds (4 hours)
     
-    # Data Sources
+    # Data Sources - News & Sentiment
+    cryptopanic_api_key: str = "free"  # Free tier available
+    lunarcrush_api_key: Optional[str] = None  # Optional paid API
+    glassnode_api_key: Optional[str] = None  # Optional paid API
     coingecko_api_key: Optional[str] = None
     dex_screener_api_key: Optional[str] = None
     defillama_api_key: Optional[str] = None
