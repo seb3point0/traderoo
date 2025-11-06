@@ -1,0 +1,6 @@
+# Cursor Rules
+
+## File Organization
+- All markdown (.md) files created by the AI assistant must be placed in the `docs/` folder
+- The only exception is README.md files which should remain in their respective directories (root, subdirectories) as per standard conventions
+
