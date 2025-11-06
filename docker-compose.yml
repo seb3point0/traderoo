@@ -17,6 +17,20 @@ services:
     networks:
       - trading-network
 
+  frontend:
+    build: ./frontend
+    container_name: trading-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8000
+    depends_on:
+      - trading-api
+    networks:
+      - trading-network
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     container_name: trading-redis
